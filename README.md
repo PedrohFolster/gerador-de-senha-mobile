@@ -2,7 +2,8 @@
 
 Um aplicativo mobile simples para gerar senhas seguras, desenvolvido com React Native e Expo.
 
-![Tela do aplicativo](https://github.com/eqMoura01/gerador-de-senha-mobile/blob/main/assets/screenshot.png)
+![Tela inicial do aplicativo](/img/app-image-001.jpeg)
+![Tela de historico de senhas do aplicativo](/img/app-image-002.jpeg)
 
 ## Funcionalidades
 
