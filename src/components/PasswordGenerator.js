@@ -11,14 +11,22 @@ import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { generatePassword } from '../services/passwordGenerator';
+import { savePasswordHistory, loadPasswordHistory } from '../services/storageService';
 
 const PasswordGenerator = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [passwordHistory, setPasswordHistory] = useState([]);
 
   useEffect(() => {
+    // Carregar histórico de senhas ao iniciar o componente
+    loadSavedPasswordHistory();
     generateNewPassword();
   }, []);
+
+  const loadSavedPasswordHistory = async () => {
+    const savedHistory = await loadPasswordHistory();
+    setPasswordHistory(savedHistory);
+  };
 
   const generateNewPassword = () => {
     const newPassword = generatePassword(8, true, true, true, false);
@@ -27,8 +35,10 @@ const PasswordGenerator = ({ navigation }) => {
     // Guardar senha no histórico
     setPasswordHistory(prevHistory => {
       const newHistory = [newPassword, ...prevHistory];
-      // Limitar o histórico a 10 senhas
-      return newHistory.slice(0, 10);
+      // Salvar o histórico atualizado no AsyncStorage sem limitação
+      savePasswordHistory(newHistory);
+      
+      return newHistory;
     });
   };
 
@@ -41,17 +51,15 @@ const PasswordGenerator = ({ navigation }) => {
     setPassword('');
   };
 
-  const clearPasswordHistory = () => {
+  const clearPasswordHistory = async () => {
+    await savePasswordHistory([]);
     setPasswordHistory([]);
     Alert.alert('Sucesso', 'Histórico de senhas limpo com sucesso!');
   };
 
   const navigateToHistory = () => {
     if (navigation && navigation.navigate) {
-      navigation.navigate('PasswordHistory', { 
-        passwordHistory,
-        clearPasswordHistory 
-      });
+      navigation.navigate('PasswordHistory', { clearPasswordHistory });
     }
   };
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,27 +6,62 @@ import {
   TouchableOpacity,
   FlatList,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as Clipboard from 'expo-clipboard';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { clearPasswordHistory as clearStoredHistory, loadPasswordHistory } from '../services/storageService';
 
 const PasswordHistory = ({ navigation, route }) => {
-  const { passwordHistory = [], clearPasswordHistory } = route.params || {};
+  const [passwordHistory, setPasswordHistory] = useState([]);
+  const { clearPasswordHistory } = route.params || {};
+  
+  useEffect(() => {
+    // Carregar histórico de senhas do storage ao abrir a tela
+    loadSavedHistory();
+    
+    // Adicionar um listener para recarregar o histórico quando a tela for focada novamente
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadSavedHistory();
+    });
+    
+    // Limpeza ao desmontar
+    return unsubscribe;
+  }, [navigation]);
+  
+  const loadSavedHistory = async () => {
+    const history = await loadPasswordHistory();
+    setPasswordHistory(history);
+  };
 
-  const handleClearHistory = () => {
-    // Chama a função de limpeza que foi passada
+  const handleClearHistory = async () => {
+    // Limpar o histórico no AsyncStorage
+    await clearStoredHistory();
+    
+    // Atualizar o estado local
+    setPasswordHistory([]);
+    
+    // Chamar a função de limpeza que foi passada, se existir
     if (clearPasswordHistory) {
       clearPasswordHistory();
     }
-    
-    // Volta para a tela anterior
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    }
+  };
+  
+  const copyPasswordToClipboard = async (password) => {
+    await Clipboard.setStringAsync(password);
+    Alert.alert('Copiado!', 'Senha copiada para a área de transferência.');
   };
 
   const renderItem = ({ item }) => (
-    <Text style={styles.passwordItem}>{item}</Text>
+    <TouchableOpacity 
+      style={styles.passwordItemContainer}
+      onPress={() => copyPasswordToClipboard(item)}
+    >
+      <Text style={styles.passwordItem}>{item}</Text>
+      <FontAwesome5 name="copy" size={16} color="#4A86E8" style={styles.copyIcon} />
+    </TouchableOpacity>
   );
 
   return (
@@ -107,12 +142,23 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 20,
   },
+  passwordItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
   passwordItem: {
     fontSize: 18,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     color: '#333333',
-    paddingVertical: 10,
     textAlign: 'center',
+    marginRight: 10,
+  },
+  copyIcon: {
+    marginLeft: 10,
   },
   emptyText: {
     fontSize: 16,
