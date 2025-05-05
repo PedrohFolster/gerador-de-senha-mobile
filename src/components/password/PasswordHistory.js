@@ -12,10 +12,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { clearPasswordHistory as clearStoredHistory, loadPasswordHistory } from '../services/storageService';
+import { clearPasswordHistory as clearStoredHistory, loadPasswordHistory } from '../../services/storageService';
 
 const PasswordHistory = ({ navigation, route }) => {
   const [passwordHistory, setPasswordHistory] = useState([]);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
   const { clearPasswordHistory } = route.params || {};
   
   useEffect(() => {
@@ -34,6 +35,13 @@ const PasswordHistory = ({ navigation, route }) => {
   const loadSavedHistory = async () => {
     const history = await loadPasswordHistory();
     setPasswordHistory(history);
+    
+    // Inicializa todas as senhas como ocultas
+    const initialVisibility = {};
+    history.forEach((_, index) => {
+      initialVisibility[index] = false;
+    });
+    setVisiblePasswords(initialVisibility);
   };
 
   const handleClearHistory = async () => {
@@ -54,14 +62,38 @@ const PasswordHistory = ({ navigation, route }) => {
     Alert.alert('Copiado!', 'Senha copiada para a área de transferência.');
   };
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.passwordItemContainer}
-      onPress={() => copyPasswordToClipboard(item)}
-    >
-      <Text style={styles.passwordItem}>{item}</Text>
-      <FontAwesome5 name="copy" size={16} color="#4A86E8" style={styles.copyIcon} />
-    </TouchableOpacity>
+  const togglePasswordVisibility = (index) => {
+    setVisiblePasswords(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  const renderItem = ({ item, index }) => (
+    <View style={styles.passwordItemContainer}>
+      <Text style={styles.passwordItem}>
+        {visiblePasswords[index] ? item : '••••••••'}
+      </Text>
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity 
+          onPress={() => togglePasswordVisibility(index)} 
+          style={styles.iconButton}
+        >
+          <FontAwesome5 
+            name={visiblePasswords[index] ? "eye-slash" : "eye"} 
+            size={16} 
+            color="#4A86E8" 
+            style={styles.icon} 
+          />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => copyPasswordToClipboard(item)} 
+          style={styles.iconButton}
+        >
+          <FontAwesome5 name="copy" size={16} color="#4A86E8" style={styles.copyIcon} />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   return (
@@ -145,7 +177,7 @@ const styles = StyleSheet.create({
   passwordItemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#EEE',
@@ -154,11 +186,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     color: '#333333',
-    textAlign: 'center',
-    marginRight: 10,
+    flex: 1,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    padding: 8,
+  },
+  icon: {
+    marginRight: 5,
   },
   copyIcon: {
-    marginLeft: 10,
+    marginLeft: 5,
   },
   emptyText: {
     fontSize: 16,

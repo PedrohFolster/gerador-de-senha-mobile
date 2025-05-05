@@ -10,12 +10,15 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { generatePassword } from '../services/passwordGenerator';
-import { savePasswordHistory, loadPasswordHistory } from '../services/storageService';
+import { generatePassword } from '../../services/passwordGenerator';
+import { savePasswordHistory, loadPasswordHistory } from '../../services/storageService';
+import PasswordSaveDialog from '../modals/PasswordSaveDialog';
 
 const PasswordGenerator = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [passwordHistory, setPasswordHistory] = useState([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [savedPasswords, setSavedPasswords] = useState([]);
 
   useEffect(() => {
     // Carregar histórico de senhas ao iniciar o componente
@@ -63,6 +66,26 @@ const PasswordGenerator = ({ navigation }) => {
     }
   };
 
+  const handleSavePassword = () => {
+    if (!password) {
+      Alert.alert('Erro', 'Não há senha para salvar.');
+      return;
+    }
+    
+    // Mostrar modal para salvar senha
+    setShowSaveDialog(true);
+  };
+
+  const navigateToSavedPasswords = () => {
+    if (navigation && navigation.navigate) {
+      navigation.navigate('SavedPasswords');
+    }
+  };
+
+  const onSavedPasswordsUpdated = (updatedPasswords) => {
+    setSavedPasswords(updatedPasswords);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
@@ -98,18 +121,42 @@ const PasswordGenerator = ({ navigation }) => {
       
       <TouchableOpacity
         style={styles.button}
+        onPress={handleSavePassword}
+      >
+        <Text style={styles.buttonText}>SALVAR</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={styles.button}
         onPress={clearPassword}
       >
         <Text style={styles.buttonText}>LIMPAR</Text>
       </TouchableOpacity>
       
-      {/* Link para ver histórico */}
-      <TouchableOpacity
-        style={styles.linkButton}
-        onPress={navigateToHistory}
-      >
-        <Text style={styles.linkText}>Ver Senhas</Text>
-      </TouchableOpacity>
+      {/* Links para ver históricos */}
+      <View style={styles.linksContainer}>
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={navigateToHistory}
+        >
+          <Text style={styles.linkText}>Ver Histórico</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={navigateToSavedPasswords}
+        >
+          <Text style={styles.linkText}>Ver Senhas Salvas</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Modal para salvar senha */}
+      <PasswordSaveDialog
+        visible={showSaveDialog}
+        onClose={() => setShowSaveDialog(false)}
+        password={password}
+        onSave={onSavedPasswordsUpdated}
+      />
     </View>
   );
 };
@@ -170,8 +217,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  linksContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 10,
+  },
   linkButton: {
-    marginTop: 20,
     padding: 10,
   },
   linkText: {
