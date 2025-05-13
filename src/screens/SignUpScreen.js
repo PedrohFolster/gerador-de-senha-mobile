@@ -1,135 +1,202 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { registerUser } from '../services/authService';
+import { testApiConnection } from '../api/apiUtils';
+import { API_URL } from '../api/apiConfig';
+import { useAuth } from '../contexts/AuthContext';
 
-const SignUpScreen = ({ navigation }) => {
+const SignupScreen = ({ navigation }) => {
+  const { register, isAuthenticated } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const isFormFilled = 
-    name.trim() !== '' && 
-    email.trim() !== '' && 
-    password.trim() !== '' && 
-    confirmPassword.trim() !== '';
+  const [connectionStatus, setConnectionStatus] = useState(null);
 
-  const handleSignUp = async () => {
+  useEffect(() => {
+    // Check connection when the component mounts
+    checkConnection();
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && navigation.isFocused()) {
+      navigation.navigate('Home');
+    }
+  }, [isAuthenticated, navigation]);
+
+  const checkConnection = async () => {
+    try {
+      setConnectionStatus('checking');
+      const result = await testApiConnection();
+      setConnectionStatus(result.success ? 'connected' : 'failed');
+      
+      if (!result.success) {
+        Alert.alert(
+          'Problema de Conexão',
+          `Não foi possível conectar ao servidor: ${result.message}. \n\nEstamos usando a URL: ${API_URL}\n\nLembre-se que no Android é necessário usar 10.0.2.2 em vez de localhost.`,
+          [
+            { text: 'OK' }
+          ]
+        );
+      }
+    } catch (error) {
+      setConnectionStatus('failed');
+      console.error('Connection check error:', error);
+    }
+  };
+
+  const renderConnectionStatus = () => {
+    if (connectionStatus === 'checking') {
+      return <Text style={styles.connectionChecking}>Verificando conexão...</Text>;
+    } else if (connectionStatus === 'connected') {
+      return <Text style={styles.connectionSuccess}>Servidor conectado!</Text>;
+    } else if (connectionStatus === 'failed') {
+      return (
+        <TouchableOpacity onPress={checkConnection}>
+          <Text style={styles.connectionFailed}>
+            Falha na conexão com o servidor. Toque para tentar novamente.
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
+  const handleSignup = async () => {
+    // Validações básicas
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Erro', 'Por favor, preencha todos os campos.');
+      Alert.alert('Erro', 'Por favor, preencha todos os campos');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não coincidem.');
+      Alert.alert('Erro', 'As senhas não conferem');
       return;
     }
 
-    setLoading(true);
-    
-    try {
-      const result = await registerUser(name, email, password);
+    // Validar formato do email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Erro', 'Por favor, insira um email válido');
+      return;
+    }
+
+    // Check connection before attempting to sign up
+    if (connectionStatus !== 'connected') {
+      const shouldContinue = await new Promise(resolve => {
+        Alert.alert(
+          'Aviso de Conexão',
+          'Não foi possível confirmar a conexão com o servidor. Deseja tentar criar a conta mesmo assim?',
+          [
+            { text: 'Cancelar', onPress: () => resolve(false), style: 'cancel' },
+            { text: 'Testar conexão', onPress: async () => {
+              await checkConnection();
+              resolve(connectionStatus === 'connected');
+            }},
+            { text: 'Continuar mesmo assim', onPress: () => resolve(true) },
+          ]
+        );
+      });
       
-      if (result.success) {
-        Alert.alert('Sucesso', 'Conta criada com sucesso!', [
-          { text: 'OK', onPress: () => navigation.navigate('SignIn') }
-        ]);
-      } else {
-        Alert.alert('Erro', result.message);
-      }
+      if (!shouldContinue) return;
+    }
+
+    try {
+      setLoading(true);
+      await register({ name, email, password });
+      // Navigation will happen automatically through useEffect when isAuthenticated changes
     } catch (error) {
-      console.error('Erro ao criar conta:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao criar sua conta.');
+      let errorMessage = error.message || 'Erro ao criar conta';
+      
+      // Add helpful information for connection errors
+      if (error.message && error.message.includes('Network Error')) {
+        errorMessage = `Erro de conexão com o servidor. Certifique-se de que o servidor está rodando e acessível.\n\nPlatforma: ${Platform.OS}\nURL API: ${API_URL}`;
+      }
+      
+      Alert.alert('Erro', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Signup</Text>
+        <Text style={styles.headerTitle}>Criar Conta</Text>
         <View style={{ width: 24 }} />
       </View>
       
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView contentContainerStyle={styles.scrollView}>
-          <View style={styles.content}>
-            <Text style={styles.title}>SIGN UP</Text>
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Nome"
-              value={name}
-              onChangeText={setName}
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Senha"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Confirmar Senha"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-            />
-            
-            <TouchableOpacity
-              style={[
-                styles.button,
-                isFormFilled ? styles.buttonActive : styles.buttonInactive
-              ]}
-              onPress={handleSignUp}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>REGISTRAR</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.backLink}
-              onPress={() => navigation.navigate('SignIn')}
-            >
-              <Text style={styles.backLinkText}>Voltar</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.formContainer}>
+          {renderConnectionStatus()}
+          
+          <Text style={styles.label}>Nome</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Seu nome completo"
+            value={name}
+            onChangeText={setName}
+          />
+          
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Seu melhor email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          
+          <Text style={styles.label}>Senha</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Crie uma senha segura"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+          
+          <Text style={styles.label}>Confirmar Senha</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Confirme sua senha"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+          />
+          
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleSignup}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>CRIAR CONTA</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -143,8 +210,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
@@ -154,65 +220,70 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 20,
+    fontWeight: '600',
     color: '#000000',
-    fontWeight: '500',
   },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
+  scrollContent: {
     flexGrow: 1,
   },
-  content: {
-    flex: 1,
+  formContainer: {
     padding: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#4A86E8',
-    marginBottom: 40,
+  label: {
+    fontSize: 16,
+    marginBottom: 8,
+    color: '#333333',
   },
   input: {
-    backgroundColor: '#E8F0FE',
-    width: '100%',
-    height: 50,
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
+    padding: 15,
     fontSize: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   button: {
-    width: '80%',
-    height: 50,
+    backgroundColor: '#4A86E8',
     borderRadius: 8,
-    justifyContent: 'center',
+    padding: 15,
     alignItems: 'center',
     marginTop: 10,
-  },
-  buttonActive: {
-    backgroundColor: '#4A86E8',
-  },
-  buttonInactive: {
-    backgroundColor: '#D3D3D3',
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-  backLink: {
-    marginTop: 20,
-    padding: 10,
+  connectionChecking: {
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#666',
+    fontSize: 14,
   },
-  backLinkText: {
-    color: '#4A86E8',
+  connectionSuccess: {
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#4CAF50',
     fontSize: 14,
     fontWeight: '500',
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  connectionFailed: {
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#F44336',
+    fontSize: 14,
+    fontWeight: '500',
+    backgroundColor: '#FFEBEE',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
   },
 });
 
-export default SignUpScreen; 
+export default SignupScreen; 

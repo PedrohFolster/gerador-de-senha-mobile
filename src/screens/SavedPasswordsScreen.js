@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -13,28 +14,55 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadSavedPasswords, clearSavedPasswords } from '../components/modals/PasswordSaveDialog';
+import PasswordHistoryItem from '../components/password/PasswordHistoryItem';
+import { getAllPasswordItems, deletePasswordItem } from '../api/PasswordApi';
+import { useAuth } from '../contexts/AuthContext';
 
 const SavedPasswordsScreen = ({ navigation }) => {
+  const { sessionData } = useAuth();
   const [savedPasswords, setSavedPasswords] = useState([]);
   const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPasswords();
+    loadPasswordsFromAPI();
     
     // Recarregar senhas salvas quando a tela for focada
-    const unsubscribe = navigation.addListener('focus', loadPasswords);
+    const unsubscribe = navigation.addListener('focus', loadPasswordsFromAPI);
     return unsubscribe;
   }, [navigation]);
 
-  const loadPasswords = async () => {
-    const passwords = await loadSavedPasswords();
-    setSavedPasswords(passwords);
-    // Inicializa todas as senhas como ocultas
-    const initialVisibility = {};
-    passwords.forEach((_, index) => {
-      initialVisibility[index] = false;
-    });
-    setVisiblePasswords(initialVisibility);
+  // Log session data for debugging
+  useEffect(() => {
+    if (sessionData) {
+      console.log('Current session data in SavedPasswordsScreen:', 
+        sessionData.lastLogin, 
+        sessionData.user?.email
+      );
+    }
+  }, [sessionData]);
+
+  const loadPasswordsFromAPI = async () => {
+    try {
+      setLoading(true);
+      const items = await getAllPasswordItems();
+      setSavedPasswords(items);
+      
+      // Inicializa todas as senhas como ocultas
+      const initialVisibility = {};
+      items.forEach(item => {
+        initialVisibility[item.id] = false;
+      });
+      setVisiblePasswords(initialVisibility);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      Alert.alert(
+        'Erro',
+        'Não foi possível carregar suas senhas. Por favor, tente novamente.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyToClipboard = async (password) => {
@@ -42,42 +70,26 @@ const SavedPasswordsScreen = ({ navigation }) => {
     Alert.alert('Copiado!', 'Senha copiada para a área de transferência.');
   };
 
-  const togglePasswordVisibility = (index) => {
+  const togglePasswordVisibility = (id) => {
     setVisiblePasswords(prev => ({
       ...prev,
-      [index]: !prev[index]
+      [id]: !prev[id]
     }));
   };
 
-  const handleDelete = (appName, index) => {
+  const handleDelete = async (id) => {
     Alert.alert(
       'Confirmar exclusão',
-      `Tem certeza que deseja excluir a senha para "${appName}"?`,
+      'Tem certeza que deseja excluir esta senha?',
       [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Excluir',
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Excluir', 
           style: 'destructive',
           onPress: async () => {
             try {
-              const updatedPasswords = [...savedPasswords];
-              updatedPasswords.splice(index, 1);
-              
-              const newPasswords = await loadSavedPasswords();
-              const filteredPasswords = newPasswords.filter(p => p.appName !== appName);
-              
-              // Atualizar AsyncStorage
-              await clearSavedPasswords();
-              
-              // Se ainda houver senhas, salve novamente
-              if (filteredPasswords.length > 0) {
-                await AsyncStorage.setItem('@saved_passwords', JSON.stringify(filteredPasswords));
-              }
-              
-              setSavedPasswords(filteredPasswords);
+              await deletePasswordItem(id);
+              loadPasswordsFromAPI();
             } catch (error) {
               console.error('Erro ao excluir senha:', error);
               Alert.alert('Erro', 'Ocorreu um erro ao excluir a senha.');
@@ -91,22 +103,22 @@ const SavedPasswordsScreen = ({ navigation }) => {
   const renderItem = ({ item, index }) => (
     <View style={styles.passwordItem}>
       <View style={styles.passwordInfo}>
-        <Text style={styles.appName}>{item.appName}</Text>
+        <Text style={styles.appName}>{item.name}</Text>
         <Text style={styles.passwordMasked}>
-          {visiblePasswords[index] ? item.password : '••••••••'}
+          {visiblePasswords[item.id] ? item.password : '••••••••'}
         </Text>
       </View>
       
       <View style={styles.passwordActions}>
-        <TouchableOpacity onPress={() => togglePasswordVisibility(index)} style={styles.actionButton}>
-          <FontAwesome5 name={visiblePasswords[index] ? "eye-slash" : "eye"} size={18} color="#4A86E8" />
+        <TouchableOpacity onPress={() => togglePasswordVisibility(item.id)} style={styles.actionButton}>
+          <FontAwesome5 name={visiblePasswords[item.id] ? "eye-slash" : "eye"} size={18} color="#4A86E8" />
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => copyToClipboard(item.password)} style={styles.actionButton}>
           <FontAwesome5 name="copy" size={18} color="#FFD700" />
         </TouchableOpacity>
         
-        <TouchableOpacity onPress={() => handleDelete(item.appName, index)} style={styles.actionButton}>
+        <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.actionButton}>
           <FontAwesome5 name="trash" size={18} color="#999999" />
         </TouchableOpacity>
       </View>
@@ -121,18 +133,23 @@ const SavedPasswordsScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Históricos de senhas</Text>
+        <Text style={styles.headerTitle}>Senhas Salvas</Text>
         <View style={{ width: 24 }} />
       </View>
       
       <View style={styles.content}>
-        <Text style={styles.title}>HISTÓRICO DE SENHAS</Text>
+        <Text style={styles.title}>SENHAS SALVAS</Text>
         
-        {savedPasswords.length > 0 ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4A86E8" />
+            <Text style={styles.loadingText}>Carregando senhas...</Text>
+          </View>
+        ) : savedPasswords.length > 0 ? (
           <FlatList
             data={savedPasswords}
             renderItem={renderItem}
-            keyExtractor={(item, index) => `password-${index}`}
+            keyExtractor={(item) => item.id}
             style={styles.list}
           />
         ) : (
@@ -241,6 +258,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666666',
+    marginTop: 10,
   },
 });
 

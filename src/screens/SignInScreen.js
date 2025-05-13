@@ -2,172 +2,241 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   TouchableOpacity,
+  StyleSheet,
   Alert,
-  KeyboardAvoidingView,
+  ActivityIndicator,
   Platform,
-  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { loginUser } from '../services/authService';
-import { useAuth } from '../services/authContext';
+import { useAuth } from '../contexts/AuthContext';
+import { testApiConnection } from '../api/apiUtils';
+import { API_URL } from '../api/apiConfig';
 
 const SignInScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
-  
-  const isFormFilled = email.trim() !== '' && password.trim() !== '';
+  const [connectionChecked, setConnectionChecked] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState(null);
+  const { login, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    // Test connection when the component mounts
+    checkConnection();
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && navigation.isFocused()) {
+      navigation.navigate('Home');
+    }
+  }, [isAuthenticated, navigation]);
+
+  const checkConnection = async () => {
+    try {
+      setConnectionStatus('checking');
+      const result = await testApiConnection();
+      setConnectionStatus(result.success ? 'connected' : 'failed');
+      setConnectionChecked(true);
+      
+      if (!result.success) {
+        Alert.alert(
+          'Problema de Conexão',
+          `Não foi possível conectar ao servidor: ${result.message}. \n\nEstamos usando a URL: ${API_URL}\n\nLembre-se que no Android é necessário usar 10.0.2.2 em vez de localhost.`,
+          [
+            { text: 'OK' }
+          ]
+        );
+      }
+    } catch (error) {
+      setConnectionStatus('failed');
+      setConnectionChecked(true);
+      console.error('Connection check error:', error);
+    }
+  };
 
   const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert('Erro', 'Por favor, preencha todos os campos.');
+      Alert.alert('Erro', 'Por favor, preencha todos os campos');
       return;
     }
 
-    setLoading(true);
-    
-    try {
-      const result = await loginUser(email, password);
+    // Check connection before attempting to sign in
+    if (connectionStatus !== 'connected') {
+      const shouldContinue = await new Promise(resolve => {
+        Alert.alert(
+          'Aviso de Conexão',
+          'Não foi possível confirmar a conexão com o servidor. Deseja tentar fazer login mesmo assim?',
+          [
+            { text: 'Cancelar', onPress: () => resolve(false), style: 'cancel' },
+            { text: 'Testar conexão', onPress: async () => {
+              await checkConnection();
+              resolve(connectionStatus === 'connected');
+            }},
+            { text: 'Continuar mesmo assim', onPress: () => resolve(true) },
+          ]
+        );
+      });
       
-      if (result.success) {
-        // Guardar usuário no contexto
-        await login(result.user);
-        // Como especificado, não fazemos validação real
-        navigation.replace('Home');
-      } else {
-        Alert.alert('Erro', result.message);
-      }
+      if (!shouldContinue) return;
+    }
+
+    try {
+      setLoading(true);
+      await login({ email, password });
+      // No need to navigate here, the useEffect will handle it when isAuthenticated changes
     } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao fazer login.');
+      let errorMessage = error.message || 'Erro ao fazer login';
+      
+      // Add helpful information for connection errors
+      if (error.message && error.message.includes('Network Error')) {
+        errorMessage = `Erro de conexão com o servidor. Certifique-se de que o servidor está rodando e acessível.\n\nPlatforma: ${Platform.OS}\nURL API: ${API_URL}`;
+      }
+      
+      Alert.alert('Erro', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  const renderConnectionStatus = () => {
+    if (connectionStatus === 'checking') {
+      return <Text style={styles.connectionChecking}>Verificando conexão...</Text>;
+    } else if (connectionStatus === 'connected') {
+      return <Text style={styles.connectionSuccess}>Servidor conectado!</Text>;
+    } else if (connectionStatus === 'failed') {
+      return (
+        <TouchableOpacity onPress={checkConnection}>
+          <Text style={styles.connectionFailed}>
+            Falha na conexão com o servidor. Toque para tentar novamente.
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar style="dark" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+    <View style={styles.container}>
+      <Text style={styles.title}>Login</Text>
+      
+      {renderConnectionStatus()}
+      
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
+      
+      <TextInput
+        style={styles.input}
+        placeholder="Senha"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+      
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handleSignIn}
+        disabled={loading}
       >
-        <ScrollView contentContainerStyle={styles.scrollView}>
-          <View style={styles.content}>
-            <Text style={styles.title}>SIGN IN</Text>
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Senha"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-            
-            <TouchableOpacity
-              style={[
-                styles.button,
-                isFormFilled ? styles.buttonActive : styles.buttonInactive
-              ]}
-              onPress={handleSignIn}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>ENTRAR</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>
-                Não possui conta ainda? 
-              </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                <Text style={styles.signupLink}>Crie agora</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.buttonText}>Entrar</Text>
+        )}
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={styles.linkButton}
+        onPress={() => navigation.navigate('SignUp')}
+      >
+        <Text style={styles.linkText}>Não tem uma conta? Cadastre-se</Text>
+      </TouchableOpacity>
+
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flexGrow: 1,
-  },
-  content: {
-    flex: 1,
     padding: 20,
     justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#4A86E8',
-    marginBottom: 40,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
   },
   input: {
-    backgroundColor: '#E8F0FE',
-    width: '100%',
     height: 50,
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
     borderRadius: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 15,
     marginBottom: 15,
     fontSize: 16,
   },
   button: {
-    width: '80%',
+    backgroundColor: '#4A86E8',
     height: 50,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
   },
-  buttonActive: {
-    backgroundColor: '#4A86E8',
-  },
-  buttonInactive: {
-    backgroundColor: '#D3D3D3',
-  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-  signupContainer: {
-    flexDirection: 'row',
-    marginTop: 20,
+  linkButton: {
+    marginTop: 15,
+    alignItems: 'center',
   },
-  signupText: {
-    color: '#333',
-    fontSize: 14,
-  },
-  signupLink: {
+  linkText: {
     color: '#4A86E8',
     fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 5,
+  },
+  testApiButton: {
+    backgroundColor: '#FFD700',
+    marginTop: 20,
+  },
+  connectionChecking: {
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#666',
+    fontSize: 14,
+  },
+  connectionSuccess: {
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: '500',
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  connectionFailed: {
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#F44336',
+    fontSize: 14,
+    fontWeight: '500',
+    backgroundColor: '#FFEBEE',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
   },
 });
 

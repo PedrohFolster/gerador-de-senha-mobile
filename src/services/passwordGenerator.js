@@ -3,48 +3,76 @@
  */
 
 /**
- * Gera uma senha aleatória com base nas opções fornecidas
- * @param {number} length - Comprimento da senha (entre 6-32)
- * @param {boolean} includeUppercase - Incluir letras maiúsculas
- * @param {boolean} includeLowercase - Incluir letras minúsculas
- * @param {boolean} includeNumbers - Incluir números
- * @param {boolean} includeSymbols - Incluir símbolos especiais
- * @returns {string} Senha gerada
+ * Gera uma senha aleatória com os critérios especificados
+ * @param {number} length - Comprimento da senha
+ * @param {boolean} useUpperCase - Incluir letras maiúsculas
+ * @param {boolean} useLowerCase - Incluir letras minúsculas
+ * @param {boolean} useNumbers - Incluir números
+ * @param {boolean} useSpecialChars - Incluir caracteres especiais
+ * @returns {string} - A senha gerada
  */
 export const generatePassword = (
   length = 12,
-  includeUppercase = true,
-  includeLowercase = true,
-  includeNumbers = true,
-  includeSymbols = true
+  useUpperCase = true,
+  useLowerCase = true,
+  useNumbers = true,
+  useSpecialChars = true
 ) => {
-  // Caracteres disponíveis para cada categoria
-  const uppercaseChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const lowercaseChars = 'abcdefghijklmnopqrstuvwxyz';
+  const upperCaseChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowerCaseChars = 'abcdefghijklmnopqrstuvwxyz';
   const numberChars = '0123456789';
-  const symbolChars = '!@#$%^&*()_-+={}[]|:;<>,.?/~';
-
-  // Garantir pelo menos um comprimento mínimo de senha
-  const safeLength = Math.max(6, Math.min(32, length));
+  const specialChars = '!@#$%^&*()_+~`|}{[]:;?><,./-=';
   
-  // Construir o conjunto de caracteres disponíveis
-  let availableChars = '';
-  if (includeUppercase) availableChars += uppercaseChars;
-  if (includeLowercase) availableChars += lowercaseChars;
-  if (includeNumbers) availableChars += numberChars;
-  if (includeSymbols) availableChars += symbolChars;
+  // Criar um pool de caracteres baseado nos critérios selecionados
+  let charPool = '';
+  if (useUpperCase) charPool += upperCaseChars;
+  if (useLowerCase) charPool += lowerCaseChars;
+  if (useNumbers) charPool += numberChars;
+  if (useSpecialChars) charPool += specialChars;
   
-  // Se nenhuma opção foi selecionada, usar letras minúsculas por padrão
-  if (!availableChars) availableChars = lowercaseChars;
-
-  // Gerar senha
-  let password = '';
-  for (let i = 0; i < safeLength; i++) {
-    const randomIndex = Math.floor(Math.random() * availableChars.length);
-    password += availableChars[randomIndex];
+  // Se nenhum conjunto de caracteres for selecionado, usar letras minúsculas e números
+  if (!charPool) {
+    charPool = lowerCaseChars + numberChars;
   }
-
+  
+  // Gerar a senha aleatoriamente
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * charPool.length);
+    password += charPool[randomIndex];
+  }
+  
   return password;
+};
+
+/**
+ * Verifica a força da senha com base em alguns critérios
+ * @param {string} password - A senha a ser verificada
+ * @returns {string} - 'fraca', 'média' ou 'forte'
+ */
+export const checkPasswordStrength = (password) => {
+  let strength = 0;
+  
+  // Verifica o comprimento
+  if (password.length >= 8) strength += 1;
+  if (password.length >= 12) strength += 1;
+  
+  // Verifica caracteres minúsculos
+  if (/[a-z]/.test(password)) strength += 1;
+  
+  // Verifica caracteres maiúsculos
+  if (/[A-Z]/.test(password)) strength += 1;
+  
+  // Verifica números
+  if (/[0-9]/.test(password)) strength += 1;
+  
+  // Verifica caracteres especiais
+  if (/[^A-Za-z0-9]/.test(password)) strength += 1;
+  
+  // Determina o nível de força
+  if (strength < 3) return 'fraca';
+  if (strength < 5) return 'média';
+  return 'forte';
 };
 
 /**

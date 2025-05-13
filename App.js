@@ -1,46 +1,90 @@
-import React from 'react';
-import { StyleSheet, Platform, StatusBar as RNStatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
-import HomeScreen from './src/screens/HomeScreen';
-import PasswordHistory from './src/components/password/PasswordHistory';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import SignInScreen from './src/screens/SignInScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
+import HomeScreen from './src/screens/HomeScreen';
 import SavedPasswordsScreen from './src/screens/SavedPasswordsScreen';
-import { AuthProvider } from './src/services/authContext';
+import PasswordHistory from './src/components/password/PasswordHistory';
 
 const Stack = createNativeStackNavigator();
+
+// Routes component with authentication state
+const Routes = () => {
+  const { user, loading, isAuthenticated } = useAuth();
+  const [state, setState] = useState({
+    initialRoute: null,
+    isReady: false
+  });
+
+  // Set initial route based on authentication state
+  useEffect(() => {
+    const route = isAuthenticated ? 'Home' : 'SignIn';
+    console.log(`Authentication state: ${isAuthenticated ? 'Authenticated' : 'Not authenticated'}, setting route to ${route}`);
+    setState({
+      initialRoute: route,
+      isReady: true
+    });
+  }, [isAuthenticated]);
+
+  if (loading || !state.isReady) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4A86E8" />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator 
+        screenOptions={{ headerShown: false }}
+        initialRouteName={state.initialRoute}
+      >
+        {/* Always include all screens, but conditionally set initial route */}
+        <Stack.Screen 
+          name="SignIn" 
+          component={SignInScreen} 
+          options={{ animationEnabled: false }}
+        />
+        <Stack.Screen 
+          name="SignUp" 
+          component={SignUpScreen} 
+          options={{ animationEnabled: false }}
+        />
+        <Stack.Screen 
+          name="Home" 
+          component={HomeScreen} 
+          options={{ animationEnabled: false }}
+        />
+        <Stack.Screen name="SavedPasswords" component={SavedPasswordsScreen} />
+        <Stack.Screen name="PasswordHistory" component={PasswordHistory} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
 
 export default function App() {
   return (
     <SafeAreaProvider>
+      <StatusBar style="dark" />
       <AuthProvider>
-        <NavigationContainer>
-          <Stack.Navigator
-            initialRouteName="SignIn"
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: '#FFFFFF' }
-            }}
-          >
-            <Stack.Screen name="SignIn" component={SignInScreen} />
-            <Stack.Screen name="SignUp" component={SignUpScreen} />
-            <Stack.Screen name="Home" component={HomeScreen} />
-            <Stack.Screen name="PasswordHistory" component={PasswordHistory} />
-            <Stack.Screen name="SavedPasswords" component={SavedPasswordsScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <Routes />
       </AuthProvider>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
   },
 });
