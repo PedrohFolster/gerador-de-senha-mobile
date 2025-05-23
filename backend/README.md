@@ -12,23 +12,24 @@ A simple backend API for the Password Generator mobile app that handles user aut
 
 ## Setup
 
-1. Install dependencies:
+1. Instale as dependências e gere o arquivo `.env` automaticamente executando o script abaixo no Windows (dentro da pasta backend):
+
 ```
-npm install
+install-deps.bat
 ```
 
-2. Create a `.env` file in the root of the backend folder with the following content:
-```
-PORT=3000
-JWT_SECRET=your_super_secret_key_change_me_in_production
-```
+Esse script irá:
+- Instalar as dependências principais (`bcryptjs`, `sqlite3`, `jsonwebtoken`)
+- Gerar automaticamente o arquivo `.env` com as configurações necessárias
 
-3. Start the server:
+2. Inicie o servidor:
+
 ```
 npm start
 ```
 
-Or for development with auto-reload:
+Ou, para desenvolvimento com auto-reload:
+
 ```
 npm run dev
 ```
@@ -39,31 +40,24 @@ As of the latest update, all passwords stored in the database are now encrypted 
 
 ### Encryption Key
 
-The encryption key is stored in the `.env` file as `ENCRYPTION_KEY`. This key is automatically generated when you first run `npm install` through the `createEnv.js` script.
+A chave de criptografia é gerada automaticamente no arquivo `.env` pelo script `createEnv.js` ao rodar o `install-deps.bat`.
 
-### Handling Existing Data
+### Recriando o .env
 
-If you had password items stored in the database before this update, they will not be encrypted. The backend will attempt to decrypt them when fetching, which will cause errors. You have two options:
+Se precisar recriar o `.env`, basta rodar:
 
-1. Clear your existing items and create new ones (recommended).
-2. If you want to keep your existing items, you'll need to manually update them in the database with encrypted versions.
-
-### Recreating the .env File
-
-If you ever need to recreate the `.env` file, you can run:
-
-```bash
+```
 node createEnv.js
 ```
 
-**Important Note:** If you recreate the `.env` file, a new encryption key will be generated, and you won't be able to decrypt previously encrypted passwords. If you need to preserve your existing encrypted passwords, make sure to backup your existing `.env` file before regenerating it.
+**Importante:** Se você recriar o `.env`, uma nova chave de criptografia será gerada e você não conseguirá mais descriptografar senhas salvas anteriormente. Faça backup do `.env` se precisar manter os dados.
 
 ## API Endpoints
 
 ### Authentication
 
 - `POST /api/signup` - Register a new user
-  - Payload: `{ email, name, password, confirmPassword }`
+  - Payload: `{ email, name, password }`
   - Response: `{ token }`
 
 - `POST /api/signin` - Login existing user

@@ -12,11 +12,11 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 router.post('/signup', async (req, res) => {
   try {
     console.log('Signup request received:', req.body);
-    const { email, name, password, confirmPassword } = req.body;
+    const { email, name, password } = req.body;
     
     // Validate required fields
-    if (!email || !name || !password || !confirmPassword) {
-      console.log('Missing required fields:', { email, name, password: !!password, confirmPassword: !!confirmPassword });
+    if (!email || !name || !password) {
+      console.log('Missing required fields:', { email, name, password: !!password });
       return res.status(400).json({ message: 'All fields are required' });
     }
     
@@ -24,12 +24,6 @@ router.post('/signup', async (req, res) => {
     if (!emailRegex.test(email)) {
       console.log('Invalid email format:', email);
       return res.status(400).json({ message: 'Invalid email format' });
-    }
-    
-    // Validate password confirmation
-    if (password !== confirmPassword) {
-      console.log('Passwords do not match');
-      return res.status(400).json({ message: 'Passwords do not match' });
     }
     
     // Check if email already exists
