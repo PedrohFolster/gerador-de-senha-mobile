@@ -1,6 +1,57 @@
 # Password Generator Backend
 
-A simple backend API for the Password Generator mobile app that handles user authentication and password item management.
+## Requisitos
+
+- **Node.js**: Versão recomendada 18.x ou superior  
+- **npm** (Node Package Manager): Versão recomendada 9.x ou superior  
+
+---
+
+## Inicialização do Back-end
+
+1. Acesse a pasta `backend`:
+   ```sh
+   cd backend
+   ```
+2. Execute o script para instalar dependências e criar o arquivo `.env`:
+   ```sh
+   install-deps.bat
+   ```
+   Isso irá instalar as dependências e criar o arquivo `.env` automaticamente.
+
+3. Inicie o servidor:
+   ```sh
+   npm start
+   ```
+   Ou, para desenvolvimento com auto-reload:
+   ```sh
+   npm run dev
+   ```
+
+### Banco de Dados
+
+- O projeto utiliza **SQLite** e já está configurado para criar o banco automaticamente na primeira execução.
+- Não é necessário configurar nada manualmente para o banco de dados.
+
+---
+
+## Inicialização do Front-end
+
+1. Volte para a raiz do projeto (caso esteja na pasta backend):
+   ```sh
+   cd ..
+   ```
+2. Instale as dependências do front-end:
+   ```sh
+   npm install
+   ```
+3. Inicie o projeto mobile (React Native com Expo):
+   ```sh
+   npm start
+   ```
+   Siga as instruções do Expo para rodar no emulador Android/iOS ou no navegador.
+
+---
 
 ## Features
 
